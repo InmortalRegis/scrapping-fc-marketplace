@@ -1,24 +1,13 @@
 const { chromium } = require("playwright");
+const sqlite3 = require("sqlite3").verbose();
+const fs = require("fs");
 
-// const detalles = await page
-//   .locator(
-//     ':below(:text("Detalles"),100):above(:text("Información del vendedor"),200)'
-//   )
-//   .evaluateAll((detalles) => detalles.map((d) => d.textContent));
-// console.log("🚀 ~ file: index.js ~ line 35 ~ main ~ detalles", detalles[0]);
-// const precio = await page.locator(':text("$ ")').first().textContent();
-// const formattedPrice = precio.split("$").pop().split("· Disponibles")[0];
-// console.log(
-//   "🚀 ~ file: index.js ~ line 48 ~ main ~ formattedPrice",
-//   formattedPrice
-// );
-// console.log("🚀 ~ file: index.js ~ line 46 ~ main ~ precio", precio);
-
-// const titulo = await page
-//   .locator(`[dir="auto"]`)
-//   .first()
-//   .textContent({ timeout: 3000 });
-// console.log("🚀 ~ file: index.js ~ line 58 ~ main ~ titulo", titulo);
+// if (!fs.existsSync("./db/database.sqlite")) {
+//   fs.writeFile("./db/database.sqlite", "Learn Node FS module", function (err) {
+//     if (err) throw err;
+//     console.log("File is created successfully.");
+//   });
+// }
 
 async function extractItems(page, itemTargetCount, scrollDelay = 1000) {
   let items = await page.locator('img:near(:text("$"))').elementHandles();
@@ -53,13 +42,27 @@ async function extractItems(page, itemTargetCount, scrollDelay = 1000) {
   return itemIds;
 }
 
+const initDB = () => {
+  fs.unlinkSync("./db/database.sqlite");
+  let db = new sqlite3.Database("./db/database.sqlite");
+  db.run(
+    "CREATE TABLE items(id TEXT, title TEXT, price TEXT, details TEXT, location TEXT, url TEXT)"
+  );
+
+  return db;
+};
+
+const query = "portatil%20i5%2016gb%2015";
+const daysSinceListed = 1;
+
 const main = async () => {
+  const db = initDB();
   const browser = await chromium.launch({
     // headless: false,
   });
   const page = await browser.newPage();
   await page.goto(
-    "https://www.facebook.com/marketplace/category/search?daysSinceListed=1&query=portatil%20i5%2016gb%2015&exact=false"
+    `https://www.facebook.com/marketplace/category/search?daysSinceListed=${daysSinceListed}&query=${query}&exact=false`
   );
 
   await page.waitForTimeout(3000);
@@ -67,7 +70,8 @@ const main = async () => {
   console.log("🚀 ~ file: index.js ~ line 57 ~ main ~ items", items);
 
   for (const item of items) {
-    await page.goto(`https://www.facebook.com/marketplace/item/${item}`);
+    const url = `https://www.facebook.com/marketplace/item/${item}`;
+    await page.goto(url);
     await page.waitForTimeout(3000);
     // Remove drawer
     const drawer = await page.locator('[role="navigation"]').elementHandle();
@@ -81,13 +85,41 @@ const main = async () => {
     console.log("🚀 ~ file: index.js ~ line 35 ~ main ~ detalles", detalles[0]);
 
     const precio = await page.locator(':text("$ ")').first().textContent();
-    const formattedPrice = precio.split("$").pop().split("· Disponibles")[0];
+    const formattedPrice = precio
+      .split("$")
+      .pop()
+      .split("· Disponibles")[0]
+      .replace(".", "");
     console.log(
       "🚀 ~ file: index.js ~ line 48 ~ main ~ formattedPrice",
       formattedPrice
     );
     console.log("🚀 ~ file: index.js ~ line 46 ~ main ~ precio", precio);
+
+    const titulo = await page
+      .locator(':above(:text("$ "),10)')
+      .first()
+      .textContent();
+    console.log("🚀 ~ file: index.js ~ line 58 ~ main ~ titulo", titulo);
+    const ubicacion = await page
+      .locator(':above(:text("La ubicación es aproximada"),5)')
+      .first()
+      .textContent();
+    console.log("🚀 ~ file: index.js ~ line 105 ~ main ~ ubicacion", ubicacion);
+    // insert one row into the langs table
+    db.run(
+      `INSERT INTO items(id, title, price, details, location, url) VALUES (?,?,?,?,?,?)`,
+      [item, titulo, formattedPrice, detalles[0], ubicacion, url],
+      function (err) {
+        if (err) {
+          return console.log(err.message);
+        }
+        // get the last insert id
+        console.log(`A row has been inserted with rowid ${this.lastID}`);
+      }
+    );
   }
+  db.close();
   await page.screenshot({ path: "screenshot.png" });
   await browser.close();
 };
