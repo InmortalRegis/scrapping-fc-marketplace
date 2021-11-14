@@ -74,7 +74,7 @@ const main = async () => {
   ];
   const db = initDB();
   const browser = await chromium.launch({
-    headless: false,
+    // headless: false,
   });
   const page = await browser.newPage();
   await page.goto(
