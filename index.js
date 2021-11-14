@@ -1,6 +1,9 @@
 const { chromium } = require("playwright");
 const sqlite3 = require("sqlite3").verbose();
 const fs = require("fs");
+const xl = require("excel4node");
+const wb = new xl.Workbook();
+const ws = wb.addWorksheet("Laptops");
 
 if (!fs.existsSync("./db/database.sqlite")) {
   fs.writeFile("./db/database.sqlite", "Learn Node FS module", function (err) {
@@ -50,6 +53,16 @@ const query = "portatil%20i7%2016gb%2015";
 const daysSinceListed = 120;
 const maxPrice = 2000000;
 
+const headingColumnNames = [
+  "id",
+  "title",
+  "price",
+  "details",
+  "location",
+  "url",
+  "publicated",
+];
+
 const main = async () => {
   const db = initDB();
   const browser = await chromium.launch({
@@ -63,6 +76,15 @@ const main = async () => {
   await page.waitForTimeout(3000);
   const items = await extractItems(page, 100);
   console.log("🚀 ~ items length", items.length);
+  const full = [];
+
+  // Write Column Title in Excel file
+  let headingColumnIndex = 1;
+  headingColumnNames.forEach((heading) => {
+    ws.cell(1, headingColumnIndex++).string(heading);
+  });
+  let rowIndex = 2;
+  // ./Write Column Title in Excel file
 
   for (const item of items) {
     console.log(`//------------- ${item} --------------//`);
@@ -104,6 +126,24 @@ const main = async () => {
       .first()
       .textContent();
     console.log("🚀  ~ publicado", publicado);
+
+    const data = {
+      id: item,
+      titulo: titulo,
+      precio: formattedPrice,
+      detalles: detalles[0],
+      ubicacion: ubicacion,
+      url: url,
+      publicado: publicado,
+    };
+    full.push(data);
+    // Write row data in Excel file
+    let columnIndex = 1;
+    Object.keys(data).forEach((columnName) => {
+      ws.cell(rowIndex, columnIndex++).string(data[columnName]);
+    });
+    rowIndex++;
+    wb.write("./items.xlsx");
     // insert one row into the langs table
     db.run(
       `INSERT INTO items(id, title, price, details, location, url, publicated) VALUES (?,?,?,?,?,?,?)`,
