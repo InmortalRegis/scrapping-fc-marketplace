@@ -78,7 +78,7 @@ const main = async () => {
   });
   const page = await browser.newPage();
   await page.goto(
-    `https://www.facebook.com/marketplace/bucaramanga/search?maxPrice=${maxPrice}&daysSinceListed=${daysSinceListed}&query=${query}&exact=false`
+    `https://www.facebook.com/marketplace/bucaramanga/search?maxPrice=${maxPrice}&daysSinceListed=${daysSinceListed}&query=${query}`
   );
   await page.waitForTimeout(3000);
   await removeDrawer(page);
