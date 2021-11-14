@@ -1,4 +1,5 @@
 const { chromium } = require("playwright");
+const { performance } = require("perf_hooks");
 const sqlite3 = require("sqlite3").verbose();
 const fs = require("fs");
 const xl = require("excel4node");
@@ -28,13 +29,10 @@ async function extractItems(page, itemTargetCount, scrollDelay = 1000) {
   }
 
   for (const item of items) {
-    await item.click();
-    await page.waitForTimeout(1000);
-    const currentUrl = page.url();
-    console.log("🚀 ~ currentUrl", currentUrl);
-    var itemId = currentUrl.split("/item/").pop().split("/?ref")[0];
+    const href = await item.evaluate((item) => item.getAttribute("href"));
+    console.log("🚀 ~ href", href);
+    var itemId = href.split("/item/").pop().split("/?ref")[0];
     itemIds.push(itemId);
-    await page.keyboard.press("Escape");
   }
 
   return itemIds;
@@ -59,6 +57,8 @@ const removeDrawer = async (page) => {
 };
 
 const main = async () => {
+  const t0 = performance.now();
+  console.log("🚀  ~ t0", t0);
   const query = "portatil%20i7%2016gb";
   const daysSinceListed = 31;
   const maxPrice = 1500000;
@@ -97,9 +97,7 @@ const main = async () => {
   for (const item of items) {
     console.log(`//------------- ${item} --------------//`);
     const url = `https://www.facebook.com/marketplace/item/${item}`;
-    await page.goto(url);
-    await page.waitForTimeout(3000);
-
+    await Promise.all([page.waitForNavigation(), page.goto(url)]);
     await removeDrawer(page);
 
     const detalles = await page
@@ -134,42 +132,41 @@ const main = async () => {
       .textContent();
     console.log("🚀  ~ publicado", publicado);
 
-    if (ubicacion.includes("Bucaramanga")) {
-      const data = {
-        id: item,
-        titulo: titulo,
-        precio: formattedPrice,
-        detalles: detalles[0],
-        ubicacion: ubicacion,
-        url: url,
-        publicado: publicado,
-      };
-      full.push(data);
-      // Write row data in Excel file
-      let columnIndex = 1;
-      Object.keys(data).forEach((columnName) => {
-        ws.cell(rowIndex, columnIndex++).string(data[columnName]);
-      });
-      rowIndex++;
-      wb.write("./items.xlsx");
-      // insert one row into the langs table
-      db.run(
-        `INSERT INTO items(id, title, price, details, location, url, publicated) VALUES (?,?,?,?,?,?,?)`,
-        [item, titulo, formattedPrice, detalles[0], ubicacion, url, publicado],
-        function (err) {
-          if (err) {
-            return console.log(err.message);
-          }
-          // get the last insert id
-          console.log(`A row has been inserted with rowid ${this.lastID}`);
+    const data = {
+      id: item,
+      titulo: titulo,
+      precio: formattedPrice,
+      detalles: detalles[0],
+      ubicacion: ubicacion,
+      url: url,
+      publicado: publicado,
+    };
+    full.push(data);
+    // Write row data in Excel file
+    let columnIndex = 1;
+    Object.keys(data).forEach((columnName) => {
+      ws.cell(rowIndex, columnIndex++).string(data[columnName]);
+    });
+    rowIndex++;
+    wb.write("./items.xlsx");
+    // insert one row into the langs table
+    db.run(
+      `INSERT INTO items(id, title, price, details, location, url, publicated) VALUES (?,?,?,?,?,?,?)`,
+      [item, titulo, formattedPrice, detalles[0], ubicacion, url, publicado],
+      function (err) {
+        if (err) {
+          return console.log(err.message);
         }
-      );
-      await page.screenshot({ path: "screenshot.png" });
-    }
+        // get the last insert id
+        console.log(`A row has been inserted with rowid ${this.lastID}`);
+      }
+    );
+    await page.screenshot({ path: "screenshot.png" });
   }
   db.close();
-
   await browser.close();
+  const t1 = performance.now();
+  console.log(`Call to doSomething took ${t1 - t0} milliseconds.`);
 };
 
 main();
